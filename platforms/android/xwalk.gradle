@@ -113,19 +113,20 @@ cdvPluginPostBuildExtras.add({
       }
     }
 
+    // map cpu architecture for the version code
+  	project.ext.versionCodes = ['armeabi': 1, 'armv7': 2, 'arm64': 3, 'x86': 4, 'x86_64': 5];
+
     android {
         if (xwalk64bit != null) {
+			flavorDimensions "default"
+
             productFlavors {
-                x86_64 {
-					flavorDimensions 'default'
-                    versionCode defaultConfig.versionCode + 6
+                x86_64 { 
                     ndk {
                        abiFilters "x86_64", ""
                     }
                 }
-                arm64 {
-					flavorDimensions 'default'
-                    versionCode defaultConfig.versionCode + 9
+                arm64 { 
                     ndk {
                         abiFilters "arm64-v8a", ""
                     }
@@ -176,6 +177,18 @@ cdvPluginPostBuildExtras.add({
             mergeTask.outputDir.mkdirs()
             outFile.write("xwalk ${xwalkCommandLine}\n")
         }
+
+		// fix version number by cpu architecture
+        variant.outputs.each { output -> 
+			def newVersion = android.defaultConfig.versionCode * 10 + project.ext.versionCodes[variant.flavorName];
+			output.versionCodeOverride = newVersion; 
+			if (variant.buildType.name.equals('release')) {
+				print '******* cpu ' + variant.flavorName + ' :: '
+				print output.versionNameOverride + ' (' + output.versionCodeOverride + ') ' 
+				println '*******'
+			}
+        } 
+
         newTask.dependsOn(mergeTask)
         processTask.dependsOn(newTask)
     }
