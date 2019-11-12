@@ -53,6 +53,12 @@ import org.xwalk.core.XWalkNavigationHistory;
 import org.xwalk.core.XWalkView;
 import org.xwalk.core.XWalkGetBitmapCallback;
 
+import android.os.Build;
+import android.view.SurfaceView;
+import android.widget.FrameLayout;
+import android.content.BroadcastReceiver;
+import android.content.IntentFilter;
+
 /**
  * Glue class between CordovaWebView (main Cordova logic) and XWalkCordovaView (the actual View).
  */
@@ -78,6 +84,23 @@ public class XWalkWebViewEngine implements CordovaWebViewEngine {
     protected XWalkActivityDelegate activityDelegate;
     protected String startUrl;
     protected CordovaPreferences preferences;
+
+    private PrivacyScreenBroadcastReceiver secureBroadcastReceiver;
+    private class PrivacyScreenBroadcastReceiver extends BroadcastReceiver {
+        public String key = "Broadcast_XWalkWebViewSecure";
+        public boolean getSecure() {
+            return cordova.getContext().getSharedPreferences("EdePrivacyScreen_Config", Context.MODE_PRIVATE)
+                    .getBoolean("Secure", true);
+        }
+
+        @Override
+        public void onReceive(Context context, Intent intent) { 
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                SurfaceView sfView = ((SurfaceView)((FrameLayout)((FrameLayout) webView.getChildAt(0)).getChildAt(0)).getChildAt(0));
+                sfView.setSecure(this.getSecure());
+            }
+        }
+    }
 
     /** Used when created via reflection. */
     public XWalkWebViewEngine(Context context, CordovaPreferences preferences) {
@@ -134,6 +157,17 @@ public class XWalkWebViewEngine implements CordovaWebViewEngine {
 
                 if (startUrl != null) {
                     webView.load(startUrl, null);
+                }
+
+				// PrivacyScreen Broadcast lieten
+                if(secureBroadcastReceiver == null) {
+                    secureBroadcastReceiver = new PrivacyScreenBroadcastReceiver();
+                    IntentFilter intentFilter = new IntentFilter();
+                    intentFilter.addAction(secureBroadcastReceiver.key);
+                    cordova.getContext().registerReceiver(secureBroadcastReceiver, intentFilter);
+
+                    SurfaceView sfView = ((SurfaceView)((FrameLayout)((FrameLayout) webView.getChildAt(0)).getChildAt(0)).getChildAt(0));
+                    sfView.setSecure(secureBroadcastReceiver.getSecure());
                 }
             }
         };
@@ -267,6 +301,8 @@ public class XWalkWebViewEngine implements CordovaWebViewEngine {
 
     @Override
     public void destroy() {
+		if(secureBroadcastReceiver != null) cordova.getContext().unregisterReceiver(secureBroadcastReceiver);
+		
         if (!activityDelegate.isXWalkReady()) return;
         webView.onDestroy();
     }
